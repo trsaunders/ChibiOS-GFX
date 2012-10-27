@@ -92,8 +92,8 @@
 #if defined(GDISP_USE_GPIO)
 
 #elif defined(GDISP_USE_FSMC)
-	#define GDISP_REG              (*((volatile uint8_t *) 0x60000000)) /* RS = 0 */
-	#define GDISP_RAM              (*((volatile uint8_t *) 0x60020000)) /* RS = 1 */
+	#define GDISP_REG              (*((volatile uint8_t *) 0x60010000)) /* RS = 0 */
+	#define GDISP_RAM              (*((volatile uint8_t *) 0x60000000)) /* RS = 1 */
 
 	static __inline void lld_lcdWriteIndex(uint8_t index)			{ GDISP_REG = index; }
 	static __inline void lld_lcdWriteData(uint8_t data)			{ GDISP_RAM = data; }

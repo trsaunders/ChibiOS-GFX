@@ -70,7 +70,10 @@ bool_t GDISP_LLD(init)(void) {
 			rccEnableAHB3(RCC_AHB3ENR_FSMCEN, 0);
 
 			/* set pins to FSMC mode */
-			IOBus busD = {GPIOD, (1 << 0) | (1 << 1) | (1 << 14) | (1 << 15), 0};
+			/*IOBus busD = {GPIOD, (1 << 0) | (1 << 1) | (1 << 14) | (1 << 15), 0};*/
+
+			IOBus busD = {GPIOD, (1 << 0) | (1 << 1) | (1 << 4) | (1 << 5) | 
+					 (1 << 7) | (1 << 11) | (1 << 14) | (1 << 15), 0};
 
 			IOBus busE = {GPIOE, (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10), 0};
 
@@ -82,24 +85,24 @@ bool_t GDISP_LLD(init)(void) {
 
 		int FSMC_Bank = 0;
 		/* FSMC timing */
-		FSMC_Bank1->BTCR[FSMC_Bank+1] = (10) | (10 << 8) | (10 << 16);
+		FSMC_Bank1->BTCR[FSMC_Bank+1] = (50) | (50 << 8) | (50 << 16);
 
 		/* Bank1 NOR/SRAM control register configuration */
-		FSMC_Bank1->BTCR[FSMC_Bank] = FSMC_BCR1_WREN | FSMC_BCR1_MBKEN;
+		FSMC_Bank1->BTCR[FSMC_Bank] =   FSMC_BCR1_WREN | FSMC_BCR1_MBKEN;
 	#endif
+
+		chThdSleepMilliseconds(1000);
 
 	/* LCD_Reset */
 	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	// A Good idea to reset the module before using
 	GDISP_RST_LOW;
-    chThdSleepMilliseconds(100);
+    chThdSleepMilliseconds(200);
 	GDISP_RST_HIGH;         // Hardware Reset
-    chThdSleepMilliseconds(100);
+    chThdSleepMilliseconds(1000);
 
-    volatile uint8_t pcod = lld_lcdReadReg(0x00);
-
-    if(pcod !=0x70)
-    	chSysHalt();
+    while(lld_lcdReadReg(0x00) != 0x71)
+    	chThdSleep(1);
 
     /* PLL pre-driver divided by 1, PLLDIVN = 7 */
     lld_lcdWriteReg(PLLC1, PLLDIVM_BY_1 | 0x07);
@@ -144,8 +147,6 @@ bool_t GDISP_LLD(init)(void) {
     lld_lcdWriteReg(0x1F, 0x01);
     lld_lcdWriteReg(0x28, 0x02);
 
-    lld_lcdWriteReg(PWR, PWRR_LCD_ON);
-
 	/* Now initialise the GDISP structure */
 	GDISP.Width = GDISP_SCREEN_WIDTH;
 	GDISP.Height = GDISP_SCREEN_HEIGHT;
@@ -159,6 +160,10 @@ bool_t GDISP_LLD(init)(void) {
 		GDISP.clipx1 = GDISP.Width;
 		GDISP.clipy1 = GDISP.Height;
 	#endif
+
+	lld_lcdResetViewPort();
+	lld_lcdWriteReg(PWRR, PWRR_LCD_ON);
+
 	return TRUE;
 }
 

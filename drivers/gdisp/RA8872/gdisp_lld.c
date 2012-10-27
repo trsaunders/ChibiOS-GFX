@@ -92,33 +92,59 @@ bool_t GDISP_LLD(init)(void) {
 	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	// A Good idea to reset the module before using
 	GDISP_RST_LOW;
-	RA8872_delay(2);
+    chThdSleepMilliseconds(100);
 	GDISP_RST_HIGH;         // Hardware Reset
-	RA8872_delay(2);
+    chThdSleepMilliseconds(100);
 
-	volatile uint8_t pcod = lld_lcdReadReg(0x00);
+    volatile uint8_t pcod = lld_lcdReadReg(0x00);
 
-	/* RA8872_PLL_ini */
-	lld_lcdWriteReg(0x88, 0x07);
-	lld_lcdWriteReg(0x89, 0x03);
-	chThdSleepMilliseconds(100);
+    if(pcod !=0x70)
+    	chSysHalt();
 
-	lld_lcdWriteReg(0x01, 0x01);
-	lld_lcdWriteReg(0x02, 0x00);
-	/*LCD_CmdWrite(0x01);
-	LCD_DataWrite(0x01);
-	LCD_DataWrite(0x00);*/
+    /* PLL pre-driver divided by 1, PLLDIVN = 7 */
+    lld_lcdWriteReg(PLLC1, PLLDIVM_BY_1 | 0x07);
+    /* PLLDIVK = 3 -> PLL output divided by 8*/
+    lld_lcdWriteReg(PLLC2, PLLC2_DIV_BY_8);
+    chThdSleepMilliseconds(5);
+
+    /* perform software reset */
+    lld_lcdWriteReg(PWRR, PWRR_RESET_ON);
+    chThdSleepMilliseconds(10);
+    lld_lcdWriteReg(PWRR, PWRR_RESET_OFF);
 	chThdSleepMilliseconds(100);
 
 	/*SYSR bit[4:3] = 00 256 color , bit[2:1]= 00 8bit MCU */
-	lld_lcdWriteReg(0x10, 0x3C);
-	lld_lcdWriteReg(0x11, 0x0C);
+    //lld_lcdWriteReg(SYSR, 0x30 | SYSR_PARALLEL_DATA | SYSR_8BPP);
+    lld_lcdWriteReg(SYSR, SYSR_PARALLEL_DATA | SYSR_8BPP);
 
-	/* IOCR , GPIO interface */
-	lld_lcdWriteReg(0x12, 0x00);
+    /* GPIOs as output */
+    lld_lcdWriteReg(IOCR, 0x00);
 
-	/* IODR , GPIO */
-	lld_lcdWriteReg(0x13, 0x00);
+    /* GPIOs off */
+    lld_lcdWriteReg(IODR, 0x00);
+
+    /* Horizontal display width(pixels) = (HDWR + 1)*8 => width = 320 pixels */
+    lld_lcdWriteReg(HDWR, 39);
+    /* Horizontal Non-Display Period fine tune */
+    lld_lcdWriteReg(HNDFTR, HNDFTR_DE_ACT_HIGH | 0x02);
+    /* Horizontal Non-Display Period */
+    lld_lcdWriteReg(HNDR, 0x03);
+    /* HSYNC Start Position Register */
+    lld_lcdWriteReg(HSTR, 0x01);
+    /* HSYNC Pulse Width Register */
+    lld_lcdWriteReg(HPWR, 0x03);
+
+    /* vertical set */
+    lld_lcdWriteReg(0x19, 0xEF);
+    lld_lcdWriteReg(0x1A, 0x00);
+    lld_lcdWriteReg(0x1B, 0x0F);
+    lld_lcdWriteReg(0x1C, 0x00);
+    lld_lcdWriteReg(0x1D, 0x0E);
+    lld_lcdWriteReg(0x1E, 0x06);
+    lld_lcdWriteReg(0x1F, 0x01);
+    lld_lcdWriteReg(0x28, 0x02);
+
+    lld_lcdWriteReg(PWR, PWRR_LCD_ON);
 
 	/* Now initialise the GDISP structure */
 	GDISP.Width = GDISP_SCREEN_WIDTH;
@@ -165,15 +191,9 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 	 * @notapi
 	 */
 	void GDISP_LLD(clear)(color_t color) {
-	    unsigned i;
-
-	    lld_lcdSetCursor(0, 0);
-	    lld_lcdWriteStreamStart();
-
-	    for(i = 0; i < GDISP_SCREEN_WIDTH * GDISP_SCREEN_HEIGHT; i++)
-	    	lld_lcdWriteData(color);
-
-	    lld_lcdWriteStreamStop();
+		/* set font background colour to color */
+		lld_lcdWriteReg(TBCR, color);
+		lld_lcdWriteReg(MCLR, MCLR_START | MCLR_FULL_SCREEN | MCLR_FONT_BG_COLOR);
 	}
 #endif
 

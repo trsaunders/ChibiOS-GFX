@@ -57,6 +57,18 @@
  * @notapi
  */
 bool_t GDISP_LLD(init)(void) {
+	/* LCD_Reset */
+	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
+	// A Good idea to reset the module before using
+	GDISP_RST_LOW;
+    chThdSleepMilliseconds(200);
+	GDISP_RST_HIGH;         // Hardware Reset
+    chThdSleepMilliseconds(1000);
+
+	chThdSleepMilliseconds(2000);
+
+	return;
+
 	#ifdef GDISP_USE_GPIO
 		#error "GPIO not yet implemented for this device"
 	#elif defined(GDISP_USE_FSMC)
@@ -91,17 +103,7 @@ bool_t GDISP_LLD(init)(void) {
 		FSMC_Bank1->BTCR[FSMC_Bank] =   FSMC_BCR1_WREN | FSMC_BCR1_MBKEN;
 	#endif
 
-		chThdSleepMilliseconds(1000);
-
-	/* LCD_Reset */
-	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-	// A Good idea to reset the module before using
-	GDISP_RST_LOW;
-    chThdSleepMilliseconds(200);
-	GDISP_RST_HIGH;         // Hardware Reset
-    chThdSleepMilliseconds(1000);
-
-    while(lld_lcdReadReg(0x00) != 0x71)
+    while(lld_lcdReadReg(0x00) != 0x75)
     	chThdSleep(1);
 
     /* PLL pre-driver divided by 1, PLLDIVN = 7 */

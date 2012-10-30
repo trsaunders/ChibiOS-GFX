@@ -89,6 +89,7 @@
 
 #define RA8872_delay(n) 	halPolledDelay(MS2RTT(n));
 
+
 #if defined(GDISP_USE_GPIO)
 
 #elif defined(GDISP_USE_FSMC)
@@ -121,6 +122,10 @@
 		/* throw away first value read */
 		dummy = GDISP_RAM;
 		for(i = 0; i < size; i++) buffer[i] = GDISP_RAM;
+	}
+
+	static __inline uint8_t lld_lcdReadStatus(void) {
+		return GDISP_REG;
 	}
 
 #elif defined(GDISP_USE_SPI)

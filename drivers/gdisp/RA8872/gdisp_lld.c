@@ -50,8 +50,8 @@
 
  
  uint16_t ili9340_cfg[] = {
- #if 1
  	WRT_REG(SYSR, 0x08),
+ 	DLY(100),
  	WRT_REG(0x04, 0x00),
  	WRT_REG(0x21, 0x10),
  	DLY(100),
@@ -75,8 +75,7 @@
  	WRT_REG(0x8A, 0x81),
  	WRT_REG(0x8B, 0xFF),
  	WRT_REG(0x8C, 0x81),
- 	WRT_REG(0x8D, 0xF4),
-#endif
+ 	WRT_REG(0x8D, 0xF5),
  	/* reset LCD driver */
  	GPIO(0x0F),	/* 1 1 1 1 */
  	GPIO(0x07), /* 0 1 1 1 */
@@ -128,7 +127,10 @@
 	SPI_CMD(0x11),
 	DLY(120),
 	/* display on */
-	SPI_CMD(0x29)
+	SPI_CMD(0x29),
+	/* RA8872 stuff */
+	WRT_REG(0x41, 0x00)
+
  };
 
 /*===========================================================================*/
@@ -158,6 +160,8 @@ inline void spi9341_8bit(uint8_t data) {
 			lld_lcdWriteReg(0x13, 0x28); /* 1 0 0 0 */
 			lld_lcdWriteReg(0x13, 0x29); /* 1 0 0 1 */
 		}
+
+		mask>>=1;
 	}
 }
 
@@ -183,29 +187,14 @@ inline void spi9341_data(uint8_t data) {
  */
 bool_t GDISP_LLD(init)(void) {
 	chThdSleepMilliseconds(1000);
-	/* ILI9340 init */
-	uint16_t i;
-	for(i = 0; i < sizeof(ili9340_cfg); i++) {
-		if(ili9340_cfg[i] & SEQ_SPI_CMD)
-			spi9341_cmd(DAT(ili9340_cfg[i]));
-		else if(ili9340_cfg[i] & SEQ_DLY)
-			chThdSleepMilliseconds(DAT(ili9340_cfg[i]));
-		else if(ili9340_cfg[i] & SEQ_GPIO)
-			lld_lcdWriteReg(0x13, DAT(ili9340_cfg[i]));
-		else if(ili9340_cfg[i] & SEQ_WRT_REG)
-			lld_lcdWriteReg(DAT(ili9340_cfg[i]), DAT(ili9340_cfg[++i]));
-		else
-			spi9341_data(DAT(ili9340_cfg[i]));
-	}
-#if 0
+
 	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	// A Good idea to reset the module before using
 	GDISP_RST_LOW;
 	chThdSleepMilliseconds(200);
 	GDISP_RST_HIGH;         // Hardware Reset
-	chThdSleepMilliseconds(700);
 	chThdSleepMilliseconds(2000);
-#endif
+
 	#ifdef GDISP_USE_GPIO
 		#error "GPIO not yet implemented for this device"
 	#elif defined(GDISP_USE_FSMC)
@@ -232,16 +221,35 @@ bool_t GDISP_LLD(init)(void) {
 
 		int FSMC_Bank = 0;
 		/* FSMC timing */
-		FSMC_Bank1->BTCR[FSMC_Bank+1] = (14) | (14 << 8) | (14 << 16);
+		FSMC_Bank1->BTCR[FSMC_Bank+1] = (15) | (115 << 8) | (15 << 16);
 
 		/* Bank1 NOR/SRAM control register configuration */
 		FSMC_Bank1->BTCR[FSMC_Bank] =   FSMC_BCR1_WREN | FSMC_BCR1_MBKEN;
 	#endif
+
+	/* ILI9340 init */
+	uint16_t i;
+	for(i = 0; i < sizeof(ili9340_cfg); i++) {
+		if(ili9340_cfg[i] & SEQ_SPI_CMD) {
+			spi9341_cmd(DAT(ili9340_cfg[i]));
+		} else if(ili9340_cfg[i] & SEQ_DLY) {
+			chThdSleepMilliseconds(DAT(ili9340_cfg[i]));
+		} else if(ili9340_cfg[i] & SEQ_GPIO) {
+			lld_lcdWriteReg(0x13, DAT(ili9340_cfg[i]));
+		} else if(ili9340_cfg[i] & SEQ_WRT_REG) {
+			lld_lcdWriteReg(DAT(ili9340_cfg[i]), DAT(ili9340_cfg[++i]));
+			chThdSleepMilliseconds(5);
+		} else {
+			spi9341_data(DAT(ili9340_cfg[i]));
+		}
+
+	}
+
 	/*uint8_t r = 0;
 	for(r = 0; r < 128; r++) {
 		volatile uint8_t reg = lld_lcdReadReg(r);
 	}*/
-#if 1
+#if 0
     /* PLL pre-driver divided by 1, PLLDIVN = 7 */
     lld_lcdWriteReg(PLLC1, PLLDIVM_BY_1 | 0x07);
     /* PLLDIVK = 3 -> PLL output divided by 8*/

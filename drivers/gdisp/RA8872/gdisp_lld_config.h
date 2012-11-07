@@ -53,9 +53,6 @@
 #error "RA8872 only supports pixel formats 332, 444, 565"
 #endif
 
-
-#define GDISP_PIXELFORMAT				GDISP_PIXELFORMAT_RGB565
-
 #endif	/* HAL_USE_GDISP */
 
 #endif	/* _GDISP_LLD_CONFIG_H */

@@ -44,13 +44,13 @@
 #define GPIO(x) ((x & 0x00FF) | SEQ_GPIO)
 #define SPI_CMD(x) ((x & 0x00FF) | SEQ_SPI_CMD)
 #define SPI_DAT(x) (x & 0x00FF)
-#define DAT(x) (x & 0x00FF)
-#define DLY(x) ((x & 0x00FF) | SEQ_DLY)
+#define DAT(x) (uint8_t)(x & 0x00FF)
+#define DLY(x) ((uint8_t)(x & 0x00FF) | SEQ_DLY)
 #define WRT_REG(x, y) ((x & 0x00FF) | SEQ_WRT_REG), (y & 0x00FF)
 
  
  uint16_t ili9340_cfg[] = {
- 	WRT_REG(SYSR, 0x08),
+ 	WRT_REG(0x10, 0x08),
  	DLY(100),
  	WRT_REG(0x04, 0x00),
  	WRT_REG(0x21, 0x10),
@@ -129,8 +129,7 @@
 	/* display on */
 	SPI_CMD(0x29),
 	/* RA8872 stuff */
-	WRT_REG(0x41, 0x00)
-
+	//WRT_REG(0x41, 0x00)
  };
 
 /*===========================================================================*/
@@ -229,18 +228,20 @@ bool_t GDISP_LLD(init)(void) {
 
 	/* ILI9340 init */
 	uint16_t i;
-	for(i = 0; i < sizeof(ili9340_cfg); i++) {
-		if(ili9340_cfg[i] & SEQ_SPI_CMD) {
-			spi9341_cmd(DAT(ili9340_cfg[i]));
-		} else if(ili9340_cfg[i] & SEQ_DLY) {
-			chThdSleepMilliseconds(DAT(ili9340_cfg[i]));
+	for(i = 0; i < sizeof(ili9340_cfg)/2; i++) {
+		uint16_t cmd = ili9340_cfg[i];
+		uint8_t data = DAT(cmd);
+		if(cmd & SEQ_SPI_CMD) {
+			spi9341_cmd(data);
+		} else if(cmd & SEQ_DLY) {
+			chThdSleepMilliseconds(data);
 		} else if(ili9340_cfg[i] & SEQ_GPIO) {
-			lld_lcdWriteReg(0x13, DAT(ili9340_cfg[i]));
+			lld_lcdWriteReg(0x13, data);
 		} else if(ili9340_cfg[i] & SEQ_WRT_REG) {
 			lld_lcdWriteReg(DAT(ili9340_cfg[i]), DAT(ili9340_cfg[++i]));
-			chThdSleepMilliseconds(5);
+			chThdSleepMilliseconds(10);
 		} else {
-			spi9341_data(DAT(ili9340_cfg[i]));
+			spi9341_data(data);
 		}
 
 	}
@@ -307,12 +308,50 @@ bool_t GDISP_LLD(init)(void) {
 		GDISP.clipy1 = GDISP.Height;
 	#endif
 
-	lld_lcdWriteReg(SYSR, SYSR_PARALLEL_DATA | SYSR_8BPP);
+	chThdSleepMilliseconds(50);
 
-	lld_lcdWriteReg(PWRR, PWRR_LCD_ON);
+	lld_lcdWriteReg(0x41, 0x00);
 
-    //lld_lcdResetViewPort();
-    //lld_lcdSetViewPort(0, 0, 320, 240);
+	//lld_lcdSetViewPort(0, 0, 320, 240);
+
+	lld_lcdWriteReg(0x8E, 0x00);
+
+	// clear_active_window
+	lld_lcdWriteReg(0x8E, lld_lcdReadReg(0x8E) | (1 << 6));
+	chThdSleepMilliseconds(20);
+
+	//Memory_Clear()
+	lld_lcdWriteReg(0x8E, lld_lcdReadReg(0x8E) | (1 << 7));
+	while(lld_lcdReadStatus() & 0x80);
+	chThdSleepMilliseconds(120);
+
+	lld_lcdWriteReg(0x20, 0x03);
+	lld_lcdWriteReg(0x40, 0x08);
+	chThdSleepMilliseconds(20);
+
+	lld_lcdWriteReg(0x01, 0x80);
+
+	lld_lcdWriteReg(0x12, 0x00);
+
+	/*TP init */
+	lld_lcdWriteReg(0x70, lld_lcdReadReg(0x70) | (1 << 7));
+	lld_lcdWriteReg(0x70, 0xD4);
+	/* set_4wire_TP */
+	lld_lcdWriteReg(0x71, lld_lcdReadReg(0x71) | (1 << 7));
+	/* TP_manual_mode */
+	lld_lcdWriteReg(0x71, lld_lcdReadReg(0x71) | (1 << 6));
+    //
+    //
+
+    /* display function control */
+    spi9341_cmd(0x2C);
+    spi9341_cmd(0xB6);
+    spi9341_data(0x0A);
+    spi9341_data(0xE2);
+
+    lld_lcdResetViewPort();
+
+    lld_lcdWriteReg(SYSR, SYSR_PARALLEL_DATA | SYSR_8BPP);
 
 	return TRUE;
 }
@@ -331,7 +370,9 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 		if (x < GDISP.clipx0 || y < GDISP.clipy0 || x >= GDISP.clipx1 || y >= GDISP.clipy1) return;
 	#endif
 	lld_lcdSetCursor(x, y);
-	lld_lcdWriteReg(0x0022, color);
+
+	/* TODO: pixel format */
+	lld_lcdWriteReg(MRWC, color);
 }
 
 /* ---- Optional Routines ---- */
@@ -354,7 +395,7 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 	lld_lcdWriteReg(0x8E, lld_lcdReadReg(0x8E) | 0x01);
 
 	//Text_Background_Color(0xfc); 
-	lld_lcdWriteReg(0x43, color);
+	lld_lcdWriteReg(TBCR, color);
 
 	//Memory_Clear(); 
 	lld_lcdWriteReg(0x8E, lld_lcdReadReg(0x8E) | 0x80);
@@ -386,13 +427,14 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 			if (y+cy > GDISP.clipy1)	cy = GDISP.clipy1 - y;
 		#endif
 
-		area = cx*cy;
-		lld_lcdSetViewPort(x, y, cx, cy);
-		lld_lcdWriteStreamStart();
-		for(i = 0; i < area; i++)
-			lld_lcdWriteData(color);
-		lld_lcdWriteStreamStop();
-		lld_lcdResetViewPort();
+		lld_lcdSetDrawCoords(x, y, x + cx, y + cy);
+
+		lld_lcdWriteReg(TFCR, color);
+
+		lld_lcdWriteReg(DCR, DCR_DRAW_SQUARE | DCR_FILL_AREA | DCR_DRAW_START);
+
+		/* loop until complete */
+		while(lld_lcdReadReg(DCR) & DCR_DRAW_START);
 	}
 #endif
 
@@ -485,13 +527,6 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 	 * @notapi
 	 */
 	void GDISP_LLD(verticalscroll)(coord_t x, coord_t y, coord_t cx, coord_t cy, int lines, color_t bgcolor) {
-		/* This is marked as "TODO: Test this" in the original GLCD driver.
-		 * For now we just leave the GDISP_HARDWARE_SCROLL off.
-		 */
-		static color_t buf[((GDISP_SCREEN_HEIGHT > GDISP_SCREEN_WIDTH ) ? GDISP_SCREEN_HEIGHT : GDISP_SCREEN_WIDTH)];
-		coord_t row0, row1;
-		unsigned i, gap, abslines;
-
 		#if GDISP_NEED_VALIDATION || GDISP_NEED_CLIP
 			if (x < GDISP.clipx0) { cx -= GDISP.clipx0 - x; x = GDISP.clipx0; }
 			if (y < GDISP.clipy0) { cy -= GDISP.clipy0 - y; y = GDISP.clipy0; }
@@ -499,42 +534,12 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 			if (x+cx > GDISP.clipx1)	cx = GDISP.clipx1 - x;
 			if (y+cy > GDISP.clipy1)	cy = GDISP.clipy1 - y;
 		#endif
+		
+		lld_lcdCopyRegion(	cx, cy - lines,
+							x, y + lines,
+							x, y);
 
-		abslines = lines < 0 ? -lines : lines;
-		if (abslines >= cy) {
-			abslines = cy;
-			gap = 0;
-		} else {
-			gap = cy - abslines;
-			for(i = 0; i < gap; i++) {
-				if(lines > 0) {
-					row0 = y + i + lines;
-					row1 = y + i;
-				} else {
-					row0 = (y - i - 1) + lines;
-					row1 = (y - i - 1);
-				}
-
-				/* read row0 into the buffer and then write at row1*/
-				lld_lcdSetViewPort(x, row0, cx, 1);
-				lld_lcdReadStreamStart();
-				lld_lcdReadStream(buf, cx);
-				lld_lcdReadStreamStop();
-
-				lld_lcdSetViewPort(x, row1, cx, 1);
-				lld_lcdWriteStreamStart();
-				lld_lcdWriteStream(buf, cx);
-				lld_lcdWriteStreamStop();
-			}
-		}
-
-		/* fill the remaining gap */
-		lld_lcdSetViewPort(x, lines > 0 ? (y+gap) : y, cx, abslines);
-		lld_lcdWriteStreamStart();
-		gap = cx*abslines;
-		for(i = 0; i < gap; i++) lld_lcdWriteData(bgcolor);
-		lld_lcdWriteStreamStop();
-		lld_lcdResetViewPort();
+		gdispFillArea(x, y + cy - lines, cx, lines, bgcolor);
 	}
 #endif
 

@@ -57,6 +57,12 @@
 #define HSTR                    0x17
 #define HPWR                    0x18
 
+#define DPCR					0x20
+#define DPCR_ROT_0				0x00
+#define DPCR_ROT_90				0x01
+#define DPCR_ROT_180			0x02
+#define DPCR_ROT_270			0x03
+
 #define HOFS0					0x24
 #define HOFS1					0x25
 #define VOFS0					0x26
@@ -294,14 +300,15 @@ static void lld_lcdSetViewPort(uint16_t x, uint16_t y, uint16_t cx, uint16_t cy)
 }
 
 static void lld_lcdResetViewPort(void) {
+
 	switch(GDISP.Orientation) {
 		case GDISP_ROTATE_0:
 		case GDISP_ROTATE_180:
-			lld_lcdSetViewPort(0, 0, GDISP_SCREEN_WIDTH, GDISP_SCREEN_HEIGHT);
+			lld_lcdSetViewPort(0, 0, GDISP_SCREEN_HEIGHT, GDISP_SCREEN_WIDTH);
 			break;
 		case GDISP_ROTATE_90:
 		case GDISP_ROTATE_270:
-			lld_lcdSetViewPort(0, 0, GDISP_SCREEN_HEIGHT, GDISP_SCREEN_WIDTH);
+			lld_lcdSetViewPort(0, 0, GDISP_SCREEN_WIDTH, GDISP_SCREEN_HEIGHT);
 			break;
 	}
 }
@@ -361,7 +368,11 @@ static void lld_lcdCopyRegion(	uint16_t w, uint16_t h,
 
 	lld_lcdResetViewPort();
 
+	sx = srcx; sy = srcy;
+	dx = destx; dy = desty;
+
 	/* transform x,y to screen coordinates */
+	#if 0
 	switch(GDISP.Orientation) {
 	 	case GDISP_ROTATE_0:
 	 		sx = srcx; sy = srcy;
@@ -377,8 +388,10 @@ static void lld_lcdCopyRegion(	uint16_t w, uint16_t h,
 	 	default:
 	 		break;
 	}
+	#endif
 
 	/* get a linear index for source and destination */
+	/* TODO: fix for orientation */
 	unsigned int s = sy*GDISP_SCREEN_WIDTH + sx;
 	unsigned int d = dy*GDISP_SCREEN_WIDTH + dx;
 

@@ -185,14 +185,14 @@ inline void spi9341_data(uint8_t data) {
  * @notapi
  */
 bool_t GDISP_LLD(init)(void) {
-	chThdSleepMilliseconds(1000);
+	chThdSleepMilliseconds(500);
 
 	palSetPadMode(GDISP_RST_GPIO, GDISP_RST_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	// A Good idea to reset the module before using
 	GDISP_RST_LOW;
-	chThdSleepMilliseconds(200);
+	chThdSleepMilliseconds(100);
 	GDISP_RST_HIGH;         // Hardware Reset
-	chThdSleepMilliseconds(2000);
+	chThdSleepMilliseconds(100);
 
 	#ifdef GDISP_USE_GPIO
 		#error "GPIO not yet implemented for this device"
@@ -325,7 +325,7 @@ bool_t GDISP_LLD(init)(void) {
 	while(lld_lcdReadStatus() & 0x80);
 	chThdSleepMilliseconds(120);
 
-	lld_lcdWriteReg(0x20, 0x03);
+	lld_lcdWriteReg(DPCR, DPCR_ROT_90);
 	lld_lcdWriteReg(0x40, 0x08);
 	chThdSleepMilliseconds(20);
 
@@ -588,30 +588,23 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 			GDISP.Powermode = (gdisp_powermode_t)value;
 			return;
 		case GDISP_CONTROL_ORIENTATION:
+		/*
 			if (GDISP.Orientation == (gdisp_orientation_t)value)
-				return;
+				return;*/
 			switch((gdisp_orientation_t)value) {
 			case GDISP_ROTATE_0:
-				lld_lcdWriteReg(0x0001,0x0127);
-				lld_lcdWriteReg(0x03, 0b0011);
 				GDISP.Height = GDISP_SCREEN_HEIGHT;
 				GDISP.Width = GDISP_SCREEN_WIDTH;
 				break;
 			case GDISP_ROTATE_90:
-				lld_lcdWriteReg(0x0001,0x0027);
-				lld_lcdWriteReg(0x0003, 0b1011);
 				GDISP.Height = GDISP_SCREEN_WIDTH;
 				GDISP.Width = GDISP_SCREEN_HEIGHT;
 				break;
 			case GDISP_ROTATE_180:
-				lld_lcdWriteReg(0x0001,0x0127);
-				lld_lcdWriteReg(0x0003, 0b0000);
 				GDISP.Height = GDISP_SCREEN_HEIGHT;
 				GDISP.Width = GDISP_SCREEN_WIDTH;
 				break;
 			case GDISP_ROTATE_270:
-				lld_lcdWriteReg(0x0001,0x0027);
-				lld_lcdWriteReg(0x0003, 0b1000);
 				GDISP.Height = GDISP_SCREEN_WIDTH;
 				GDISP.Width = GDISP_SCREEN_HEIGHT;
 				break;
@@ -625,7 +618,11 @@ void GDISP_LLD(drawpixel)(coord_t x, coord_t y, color_t color) {
 				GDISP.clipy1 = GDISP.Height;
 			#endif
 			GDISP.Orientation = (gdisp_orientation_t)value;
+
+			lld_lcdResetViewPort();
+
 			return;
+
 /*
 		case GDISP_CONTROL_BACKLIGHT:
 		case GDISP_CONTROL_CONTRAST:
